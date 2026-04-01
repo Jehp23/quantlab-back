@@ -90,6 +90,11 @@ async def efficient_frontier(
     ticker_list = [t.strip().upper() for t in tickers.split(",") if t.strip()]
     if len(ticker_list) < 2:
         raise HTTPException(status_code=422, detail="Se necesitan al menos 2 tickers.")
+    if len(ticker_list) > 20:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Máximo 20 tickers permitidos (se recibieron {len(ticker_list)}).",
+        )
     return _handle(
         optimizer_service.compute_efficient_frontier,
         ticker_list,

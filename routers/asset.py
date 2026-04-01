@@ -6,7 +6,11 @@ Endpoints:
 - POST /asset/compare   Body: {tickers: [...], period: "2y"}
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Query
+
+logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field
 
 from services import asset_service
@@ -40,12 +44,14 @@ async def analyze_asset(
         )
         return result
     except KeyError as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=404,
-            detail=f"Ticker no encontrado o sin datos suficientes: {e}",
+            detail="Ticker no encontrado o sin datos suficientes.",
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(e)
+        raise HTTPException(status_code=500, detail="Error al analizar el activo. Verificá el ticker e intentá de nuevo.")
 
 
 @router.post("/compare", response_model=AssetCompareResponse)

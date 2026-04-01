@@ -12,13 +12,17 @@ Risk Parity resuelto con SLSQP para no depender de la API interna de pypfopt
 (más robusto entre versiones).
 """
 
+import logging
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from pypfopt import EfficientFrontier, risk_models, expected_returns, objective_functions
 from pypfopt.risk_models import CovarianceShrinkage
 
+from constants.rates import RISK_FREE_RATE
 from services import yahoo_service
+
+logger = logging.getLogger(__name__)
 
 
 def _load_data(tickers: list[str], period: str):
@@ -42,7 +46,7 @@ def _load_data(tickers: list[str], period: str):
 def optimize_max_sharpe(
     tickers: list[str],
     period: str = "5y",
-    risk_free_rate: float = 0.05,
+    risk_free_rate: float = RISK_FREE_RATE,
 ) -> dict:
     """
     Portafolio de Máximo Sharpe Ratio — Tangency Portfolio.
@@ -74,7 +78,7 @@ def optimize_max_sharpe(
 def optimize_min_variance(
     tickers: list[str],
     period: str = "5y",
-    risk_free_rate: float = 0.05,
+    risk_free_rate: float = RISK_FREE_RATE,
 ) -> dict:
     """
     Portafolio de Mínima Varianza — punto más a la izquierda de la frontera.
@@ -104,7 +108,7 @@ def optimize_min_variance(
 def optimize_risk_parity(
     tickers: list[str],
     period: str = "5y",
-    risk_free_rate: float = 0.05,
+    risk_free_rate: float = RISK_FREE_RATE,
 ) -> dict:
     """
     Portafolio de Risk Parity — Equal Risk Contribution (ERC).
@@ -156,7 +160,7 @@ def optimize_risk_parity(
 def compute_efficient_frontier(
     tickers: list[str],
     period: str = "5y",
-    risk_free_rate: float = 0.05,
+    risk_free_rate: float = RISK_FREE_RATE,
     points: int = 40,
 ) -> list[dict]:
     """
@@ -190,7 +194,7 @@ def compute_efficient_frontier(
                 "volatility": round(float(vol), 6),
                 "sharpe": round(float(sharpe), 4),
             })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Skipping frontier point at target={target:.4f}: {e}")
 
     return frontier

@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
+from constants.rates import RISK_FREE_RATE
+
 
 def calculate_log_returns(prices: pd.Series) -> pd.Series:
     """
@@ -52,7 +54,7 @@ def annualized_volatility(log_returns: pd.Series) -> float:
     return float(log_returns.std() * np.sqrt(252))
 
 
-def sharpe_ratio(annual_return: float, annual_vol: float, risk_free: float = 0.05) -> float:
+def sharpe_ratio(annual_return: float, annual_vol: float, risk_free: float = RISK_FREE_RATE) -> float:
     """
     Sharpe Ratio = (Rp - Rf) / σp
 
@@ -66,7 +68,7 @@ def sharpe_ratio(annual_return: float, annual_vol: float, risk_free: float = 0.0
     return float((annual_return - risk_free) / annual_vol)
 
 
-def sortino_ratio(log_returns: pd.Series, annual_return: float, risk_free: float = 0.05) -> float:
+def sortino_ratio(log_returns: pd.Series, annual_return: float, risk_free: float = RISK_FREE_RATE) -> float:
     """
     Sortino Ratio = (Rp - Rf) / σ_downside
     σ_downside = std(retornos negativos) * sqrt(252)
@@ -171,7 +173,7 @@ def alpha_jensen(
     asset_return: float,
     beta_val: float,
     market_return: float,
-    risk_free: float = 0.05,
+    risk_free: float = RISK_FREE_RATE,
 ) -> float:
     """
     α = r_asset - [Rf + β × (r_market - Rf)]
@@ -200,6 +202,11 @@ def correlation_matrix(prices_df: pd.DataFrame) -> dict[str, dict[str, float]]:
     del portafolio sin necesariamente reducir el retorno esperado (diversificación).
     """
     log_r = np.log(prices_df / prices_df.shift(1)).dropna()
+    if len(log_r) < 2:
+        raise ValueError(
+            f"Se necesitan al menos 2 períodos de datos para calcular correlaciones "
+            f"(se recibieron {len(log_r)} filas después de dropna)."
+        )
     corr = log_r.corr()
     return {
         col: {idx: round(float(corr.loc[idx, col]), 4) for idx in corr.index}

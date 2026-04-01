@@ -5,6 +5,7 @@ Levanta en http://localhost:8000
 Docs interactivas: http://localhost:8000/docs
 """
 
+import logging
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +22,14 @@ app = FastAPI(
 )
 
 # CORS — permite que el frontend Next.js en localhost:3000 llame a esta API
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+_cors_env = os.getenv("CORS_ORIGINS")
+if not _cors_env:
+    logging.warning(
+        "CORS_ORIGINS no está configurada en el entorno. "
+        "Usando 'http://localhost:3000' por defecto. "
+        "Definí CORS_ORIGINS en producción para restringir el acceso."
+    )
+cors_origins = (_cors_env or "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

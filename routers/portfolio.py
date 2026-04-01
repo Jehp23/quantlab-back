@@ -5,7 +5,11 @@ Endpoints para construir un portafolio por perfil de riesgo y analizar sus métr
 Thin layer: valida input HTTP y delega toda la lógica a portfolio_service.
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException
+
+logger = logging.getLogger(__name__)
 from models.schemas import (
     PortfolioBuildRequest,
     PortfolioBuildResponse,
@@ -40,7 +44,8 @@ async def build_portfolio(body: PortfolioBuildRequest):
         )
         return PortfolioBuildResponse(**result)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception(e)
+        raise HTTPException(status_code=400, detail="Parámetros de perfil de riesgo inválidos.")
 
 
 @router.post("/analyze", response_model=PortfolioAnalyzeResponse)
@@ -75,11 +80,13 @@ async def analyze_portfolio(body: PortfolioAnalyzeRequest):
             metrics=PortfolioMetrics(**result["metrics"]),
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception(e)
+        raise HTTPException(status_code=400, detail="Parámetros de portafolio inválidos.")
     except Exception as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=502,
-            detail=f"Error al obtener datos de mercado: {str(e)}",
+            detail="Error al obtener datos de mercado. Verificá los tickers e intentá de nuevo.",
         )
 
 
@@ -120,9 +127,11 @@ async def equity_curve(body: PortfolioAnalyzeRequest):
             data=[EquityCurvePoint(**p) for p in result["data"]],
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception(e)
+        raise HTTPException(status_code=400, detail="Parámetros de portafolio inválidos.")
     except Exception as e:
+        logger.exception(e)
         raise HTTPException(
             status_code=502,
-            detail=f"Error al construir equity curve: {str(e)}",
+            detail="Error al construir equity curve. Verificá los tickers e intentá de nuevo.",
         )

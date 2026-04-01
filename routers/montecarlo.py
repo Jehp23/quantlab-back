@@ -31,6 +31,7 @@ async def run_montecarlo(body: MonteCarloRequest):
             horizon_days=body.horizon_days,
             simulations=body.simulations,
             initial_value=body.initial_value,
+            seed=body.seed,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

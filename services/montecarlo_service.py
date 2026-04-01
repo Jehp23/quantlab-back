@@ -33,6 +33,7 @@ def run_montecarlo(
     simulations: int = 1000,
     initial_value: float = 10_000.0,
     period: str = "2y",
+    seed: int | None = None,
 ) -> dict:
     """
     N simulaciones GBM del portafolio ponderado por `weights`.
@@ -59,7 +60,8 @@ def run_montecarlo(
     # GBM con corrección de Ito
     drift = mu_daily - 0.5 * sigma_daily ** 2
 
-    rng = np.random.default_rng(42)  # semilla fija para reproducibilidad
+    # seed=None → aleatoriedad real por defecto; int → resultados reproducibles
+    rng = np.random.default_rng(seed)
 
     # paths[i, t] = valor del portafolio en simulación i, día t
     paths = np.zeros((simulations, horizon_days + 1))

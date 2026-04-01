@@ -7,6 +7,8 @@ Los tipos del frontend TypeScript deben ser espejo de estos schemas.
 from pydantic import BaseModel, Field
 from typing import Optional
 
+from constants.rates import RISK_FREE_RATE
+
 
 # ── Market ────────────────────────────────────────────────────────────────────
 
@@ -172,7 +174,7 @@ class AssetCompareResponse(BaseModel):
 class OptimizeRequest(BaseModel):
     tickers: list[str] = Field(..., min_length=2)
     period: str = "5y"
-    risk_free_rate: float = 0.05
+    risk_free_rate: float = RISK_FREE_RATE
 
 
 class OptimizeResponse(BaseModel):
@@ -212,6 +214,7 @@ class MonteCarloRequest(BaseModel):
     horizon_days: int = 252
     simulations: int = 1000
     initial_value: float = 10000.0
+    seed: Optional[int] = None  # None = aleatoriedad real; int = reproducibilidad
 
 
 class MonteCarloResponse(BaseModel):
