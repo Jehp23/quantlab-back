@@ -11,34 +11,30 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from routers import market, portfolio, asset, optimize, backtest, montecarlo, options, statistics
+from db import init_db
+from routers import auth, workspace, market, portfolio, asset, optimize, backtest, montecarlo, options, statistics
 
 load_dotenv()
+init_db()
 
 app = FastAPI(
-    title=os.getenv("APP_NAME", "Quant Lab"),
-    description="Robo Advisor + Quant Lab — API backend",
+    title=os.getenv("APP_NAME", "PonchoCapital Analyst Platform"),
+    description="Internal API para research financiero, optimization y portfolio workflows.",
     version="0.1.0",
 )
 
-# CORS — permite que el frontend Next.js en localhost:3000 llame a esta API
-_cors_env = os.getenv("CORS_ORIGINS")
-if not _cors_env:
-    logging.warning(
-        "CORS_ORIGINS no está configurada en el entorno. "
-        "Usando 'http://localhost:3000' por defecto. "
-        "Definí CORS_ORIGINS en producción para restringir el acceso."
-    )
-cors_origins = (_cors_env or "http://localhost:3000").split(",")
+# CORS — abierto para proyecto educativo open source
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Routers montados
+app.include_router(auth.router)
+app.include_router(workspace.router)
 app.include_router(market.router)
 app.include_router(portfolio.router)
 app.include_router(asset.router)
