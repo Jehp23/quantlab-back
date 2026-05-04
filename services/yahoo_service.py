@@ -1,73 +1,54 @@
 """
 Wrapper de yfinance para mercados globales.
 
-yfinance es un cliente no oficial de Yahoo Finance.
-En entornos de servidor con IP compartida (Render, Railway, etc.) Yahoo Finance
-aplica rate limiting agresivo. Se mitiga con:
-  - Session con headers de browser real
-  - Retry con exponential backoff (3 intentos)
+yfinance >= 0.2.x usa curl_cffi internamente para evitar el bot detection de Yahoo Finance.
+No pasar session externa — yfinance maneja todo solo.
+Se agrega retry con backoff para 429 Rate Limit en IPs compartidas (Render, etc.).
 """
 
 import time
 import random
 import logging
 
-import requests
 import yfinance as yf
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-}
-
 _MAX_RETRIES = 3
-_BASE_DELAY  = 1.5   # segundos, se duplica con cada intento
+_BASE_DELAY  = 2.0  # segundos, se duplica con cada reintento
 
 
-def _session() -> requests.Session:
-    s = requests.Session()
-    s.headers.update(_HEADERS)
-    return s
-
-
-def _with_retry(fn, ticker: str):
-    """Ejecuta fn() hasta _MAX_RETRIES veces con backoff exponencial."""
+def _with_retry(fn, label: str):
+    """Ejecuta fn() hasta _MAX_RETRIES veces con backoff exponencial en rate limit."""
     last_err = None
     for attempt in range(_MAX_RETRIES):
         try:
-            result = fn()
-            return result
+            return fn()
         except Exception as exc:
             last_err = exc
             msg = str(exc).lower()
-            if "too many requests" in msg or "rate limit" in msg or "429" in msg:
+            is_rate_limit = any(k in msg for k in ("too many requests", "rate limit", "429", "no data"))
+            if is_rate_limit and attempt < _MAX_RETRIES - 1:
                 wait = _BASE_DELAY * (2 ** attempt) + random.uniform(0.5, 1.5)
-                logger.warning("yfinance rate limited for %s — retry %d/%d in %.1fs",
-                               ticker, attempt + 1, _MAX_RETRIES, wait)
+                logger.warning("yfinance rate limited [%s] — reintento %d/%d en %.1fs",
+                               label, attempt + 1, _MAX_RETRIES, wait)
                 time.sleep(wait)
             else:
-                break   # error distinto, no reintentar
+                break
     raise ValueError(
-        f"No se encontró el ticker '{ticker}': {last_err}. "
-        "Verificá que el ticker sea válido (ej: AAPL, MSFT, SPY)."
+        f"No se encontró el ticker '{label}'. "
+        "Verificá que sea válido (ej: AAPL, MSFT, SPY) o intentá de nuevo en unos segundos."
     )
 
 
 def get_quote(ticker: str) -> dict:
     def _fetch():
-        t = yf.Ticker(ticker, session=_session())
+        t = yf.Ticker(ticker)
         info = t.info
-        if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
-            raise ValueError(f"Ticker '{ticker}' no encontrado.")
+        price = info.get("regularMarketPrice") or info.get("currentPrice")
+        if not price:
+            raise ValueError(f"Sin datos para '{ticker}'.")
         return info
 
     info = _with_retry(_fetch, ticker)
@@ -78,36 +59,32 @@ def get_quote(ticker: str) -> dict:
     change_pct = (change / prev_close * 100) if prev_close else 0.0
 
     return {
-        "ticker":               ticker.upper(),
-        "name":                 info.get("longName") or info.get("shortName") or ticker,
-        "price":                round(price, 4),
-        "currency":             info.get("currency", "USD"),
-        "change":               round(change, 4),
-        "change_pct":           round(change_pct, 4),
-        "volume":               info.get("regularMarketVolume") or info.get("volume"),
-        "market_cap":           info.get("marketCap"),
-        "fifty_two_week_high":  info.get("fiftyTwoWeekHigh"),
-        "fifty_two_week_low":   info.get("fiftyTwoWeekLow"),
-        "beta":                 info.get("beta"),
-        "dividend_yield":       info.get("dividendYield"),
+        "ticker":              ticker.upper(),
+        "name":                info.get("longName") or info.get("shortName") or ticker,
+        "price":               round(price, 4),
+        "currency":            info.get("currency", "USD"),
+        "change":              round(change, 4),
+        "change_pct":          round(change_pct, 4),
+        "volume":              info.get("regularMarketVolume") or info.get("volume"),
+        "market_cap":          info.get("marketCap"),
+        "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
+        "fifty_two_week_low":  info.get("fiftyTwoWeekLow"),
+        "beta":                info.get("beta"),
+        "dividend_yield":      info.get("dividendYield"),
     }
 
 
 def get_historical(ticker: str, period: str = "1y") -> list[dict]:
-    """
-    Retorna datos OHLCV históricos para un ticker.
-    Period válidos: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
-    """
     def _fetch():
-        t = yf.Ticker(ticker, session=_session())
-        hist: pd.DataFrame = t.history(period=period, interval="1d")
+        t = yf.Ticker(ticker)
+        hist = t.history(period=period, interval="1d")
         if hist.empty:
             raise ValueError(f"Sin datos para '{ticker}' en período '{period}'.")
         return hist
 
     hist = _with_retry(_fetch, ticker)
-
     hist.index = pd.to_datetime(hist.index)
+
     return [
         {
             "date":   date.strftime("%Y-%m-%d"),
@@ -122,10 +99,6 @@ def get_historical(ticker: str, period: str = "1y") -> list[dict]:
 
 
 def get_multiple_historical(tickers: list[str], period: str = "2y") -> pd.DataFrame:
-    """
-    Descarga históricos de múltiples tickers simultáneamente.
-    Más eficiente que llamar get_historical() N veces.
-    """
     def _fetch():
         data = yf.download(
             tickers,
@@ -133,8 +106,9 @@ def get_multiple_historical(tickers: list[str], period: str = "2y") -> pd.DataFr
             interval="1d",
             auto_adjust=True,
             progress=False,
-            session=_session(),
         )
+        if data.empty:
+            raise ValueError(f"Sin datos para {tickers}.")
         return data
 
     data = _with_retry(_fetch, str(tickers))

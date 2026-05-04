@@ -9,4 +9,3 @@ scipy>=1.13.0
 PyPortfolioOpt>=1.5.5
 python-dotenv>=1.0.0
 packaging>=23.0
-requests>=2.31.0
