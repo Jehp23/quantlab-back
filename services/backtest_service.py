@@ -50,6 +50,11 @@ def run_backtest(
     if prices_df.empty or len(prices_df) < 2:
         raise ValueError("Datos insuficientes para el período especificado.")
 
+    # Verificar que todos los tickers del portafolio estén disponibles
+    missing = [t for t in tickers if t not in prices_df.columns]
+    if missing:
+        raise ValueError(f"No se encontraron datos para los tickers: {missing}. Verificá que existan en yfinance.")
+
     asset_prices = prices_df[tickers].values        # shape: (n_days, n_assets)
     spy_prices   = prices_df["SPY"].values           # shape: (n_days,)
     n_days       = len(prices_df)
